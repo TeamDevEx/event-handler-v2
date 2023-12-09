@@ -8,32 +8,29 @@ const storage = new Storage({
 });
 const currentDate = moment().format("YYYY-MM-DD_HH-mm-ss");
 const bucketName = "github-flow";
-const folderName = "webhook-event/test";
-const baseFile = `webhook-event/test/event_1_${currentDate}`;
+const folderName = "webhook-event/github";
+const baseEvent = `webhook-event/github/event_1_${currentDate}`;
 
 getTargetFile = async (baseFiles) => {
-  let maxNumber = -Infinity;
-  let targetFile = null;
-
-  baseFiles.forEach((str) => {
-    const [_, __, segment] = str.split("_");
-
-    if (segment) {
-      const numbers = segment.match(/\d+/g);
-
-      if (numbers) {
-        const maxInString = Math.max(...numbers.map(Number));
-
-        if (maxInString > maxNumber) {
-          maxNumber = maxInString;
-          targetFile = str;
-        }
+  let max = 0;
+  let target = "";
+  for (const i of baseFiles) {
+    const chars = i.split("");
+    if (chars[27]) {
+      const result = parseInt(chars[27]);
+      if (result > max) {
+        target = i;
       }
     }
-  });
-
-  return targetFile;
+  }
+  return target;
 };
+
+function createNewTargetFile(input) {
+  const chars = input.split("");
+  const result = parseInt(chars[27]) + 1;
+  return result;
+}
 
 checkBatchFile = async () => {
   try {
@@ -41,27 +38,38 @@ checkBatchFile = async () => {
       prefix: folderName,
     });
     const baseFiles = files.map((file) => file.metadata.name);
+    console.log("Array of base files ", baseFiles);
     const targetExists = await getTargetFile(baseFiles);
     console.log("Does target exist? ", targetExists);
 
-    const targetExists_download = storage.bucket(bucketName).file(targetExists);
-
-    const [record] = await targetExists_download.download();
-    const recordData = JSON.parse(record.toString());
-    console.log("Count exist object", recordData.length);
-
-    if (
-      !targetExists ||
-      targetExists === null ||
-      (targetExists === undefined && recordData.length >= 200)
-    ) {
+    if (!targetExists) {
       console.log("CREATE A NEW BASE FILE");
-      await baseFile.save(JSON.stringify([]));
+      await storage.bucket(bucketName).file(baseEvent).save(JSON.stringify([]));
       console.log("CREATE A NEW BASE FILE");
-      return { file: baseFile, status: "success" };
+      return { file: baseEvent, status: "success" };
     } else {
-      console.log("BASE FILE STILL EXIST");
-      return { file: targetExists, status: "success" };
+      const targetExists_download = storage
+        .bucket(bucketName)
+        .file(targetExists);
+
+      const [record] = await targetExists_download.download();
+      const recordData = JSON.parse(record.toString());
+      console.log("Count exist object", recordData.length);
+      if (recordData.length === 4) {
+        console.log("CREATE A NEW BASE FILE");
+        const newTargetNumber = await createNewTargetFile(targetExists);
+        console.log("New Target number is : ", newTargetNumber);
+        const newTargetFile = `webhook-event/github/event_${newTargetNumber}_${currentDate}`;
+        await storage
+          .bucket(bucketName)
+          .file(newTargetFile)
+          .save(JSON.stringify([]));
+        console.log("CREATE A NEW BASE FILE");
+        return { file: newTargetFile, status: "success" };
+      } else {
+        console.log("BASE FILE STILL EXIST");
+        return { file: targetExists, status: "success" };
+      }
     }
   } catch (error) {
     return error;
@@ -70,7 +78,7 @@ checkBatchFile = async () => {
 
 uploadToGCS = async (payload) => {
   const checkBucket = await checkBatchFile();
-  console.log("checkBucket status ", checkBucket.status);
+  console.log("checkBucket status ", checkBucket);
   if (checkBucket.status == "success") {
     try {
       const getBaseFile = storage.bucket(bucketName).file(checkBucket.file);
@@ -91,6 +99,6 @@ uploadToGCS = async (payload) => {
   }
 };
 
-exports.default = { checkBatchFile, getTargetFile };
+exports.default = { checkBatchFile, getTargetFile, createNewTargetFile };
 
 uploadToGCS(fs.readFileSync("deployment_status.json", "utf-8"));
