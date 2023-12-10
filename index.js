@@ -92,7 +92,11 @@ uploadToGCS = async (payload) => {
       await storage
         .bucket(bucketName)
         .file(checkBucket.file)
-        .save(JSON.stringify(existingData));
+        .save(JSON.stringify(existingData), {
+          metadata: {
+            contentType: "application/json",
+          },
+        });
     } catch (error) {
       console.error("Error uploading JSON data to GCS:", error);
     }
