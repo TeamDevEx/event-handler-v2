@@ -3,9 +3,10 @@ const moment = require("moment");
 const fs = require("fs");
 
 const storage = new Storage({
-  projectId: "off-net-dev",
-  credentials: require("C:/Users/lendly.cagata.LTPHDISTIDLCAGA/Desktop/Dora/dora-sa"),
+  projectId: "project id",
+  credentials: require("add your service acct here"),
 });
+
 const currentDate = moment().format("YYYY-MM-DD_HH-mm-ss");
 const bucketName = "github-flow";
 const folderName = "webhook-event/github";
